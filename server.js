@@ -24,6 +24,7 @@ app.use(morgan("dev"));
 // routes
 app.use("/api/snippets", require("./routes/snippets"));
 app.use("/api/users", require("./routes/users"));
+app.use("/api/groups", require("./routes/groups"));
 
 // error handling
 app.use((req, res, next) => {
