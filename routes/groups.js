@@ -160,19 +160,29 @@ router.post("/add/:groupId/:snippetId", checkAuth, async (req, res) => {
                 .status(400)
                 .json({ message: "Snippet already in group" });
         } else {
-            group.snippets.push(req.params.snippetId);
+            // check if snippet exists
+            try {
+                let snippet = await Snippet.findById(req.params.snippetId);
+                if (snippet) {
+                    group.snippets.unshift(req.params.snippetId);
 
-            group.save((saveGroupErr, group) => {
-                if (saveGroupErr) {
-                    return res.status(500).json({
-                        error: saveGroupErr,
+                    group.save((saveGroupErr, group) => {
+                        if (saveGroupErr) {
+                            return res.status(500).json({
+                                error: saveGroupErr,
+                            });
+                        }
+                        return res.status(200).json({
+                            message: "Snippet added to group",
+                            group: group,
+                        });
                     });
                 }
-                return res.status(200).json({
-                    message: "Snippet added to group",
-                    group: group,
+            } catch (err) {
+                return res.status(500).json({
+                    message: "Could not add snippet to group",
                 });
-            });
+            }
         }
     } catch (err) {
         return res.status(500).json({
