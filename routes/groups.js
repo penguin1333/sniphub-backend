@@ -239,4 +239,7 @@ router.delete("/unadd/:groupId/:snippetId", checkAuth, async (req, res) => {
     }
 });
 
+// get user groups
+router.get("/user/:username", async (req, res) => {});
+
 module.exports = router;
