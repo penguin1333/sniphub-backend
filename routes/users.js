@@ -1,98 +1,104 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const router = express.Router();
 
 const User = require("../models/users");
 
+const router = express.Router();
+
+// JWT token generation
+const generateToken = (username, id) => {
+    const token = jwt.sign(
+        { username: username, userId: id },
+        process.env.JWT_SECRET
+    );
+    return token;
+};
+
+/*
+    Signup API
+*/
 router.post("/signup", async (req, res) => {
-    // check if user already exists
-    User.findOne({ username: req.body.username }, (err, user) => {
-        if (err) {
-            return res.status(500).json({
-                error: err,
-            });
-        }
-        // if the user already exists, return an error message
+    // Create variable for the user data
+    const { username, password } = req.body;
+
+    // Check if fields are empty
+    if (!username || !password) {
+        return res.status(400).json({ msg: "Please enter all fields" });
+    }
+
+    // Check if user exists
+    try {
+        const user = await User.findOne({ username: username });
         if (user) {
-            return res.status(400).json({
+            return res.status(409).json({
                 message: "User already exists",
             });
         }
-        // if the user does not exist, create a new user
-        const newUser = new User({
-            username: req.body.username,
-            password: req.body.password,
-        });
-        // hash the password
-        bcrypt.hash(newUser.password, 10, (err, hash) => {
-            if (err) {
-                return res.status(500).json({
-                    error: err,
-                });
-            }
-            // set the password to the hashed password
-            newUser.password = hash;
-            // save the user
-            newUser.save((err, user) => {
-                if (err) {
-                    return res.status(500).json({
-                        error: err,
-                    });
-                }
-                return res.status(201).json({
-                    message: "User created",
-                    user: user,
-                });
-            });
-        });
+    } catch (err) {
+        return res
+            .status(500)
+            .json({ message: "Error checking if user exists" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new user
+    const newUser = new User({
+        username: username,
+        password: hashedPassword,
     });
+
+    // Save user to database
+    const savedUser = await newUser.save();
+    if (savedUser) {
+        return res.status(201).json({ message: "User created successfully" });
+    } else {
+        return res.status(500).json({ message: "Error saving user" });
+    }
 });
 
-router.post("/login", (req, res) => {
-    // find the user with the username from the request body and compare the password from the request body with the password from the database
-    User.findOne({ username: req.body.username }, (err, user) => {
-        if (err) {
-            return res.status(500).json({
-                error: err,
-            });
-        }
-        // if the user is not found, return an error message
-        if (!user) {
-            return res.status(400).json({
-                message: "User not found",
-            });
-        }
-        // compare the password from the request body with the password from the database
-        bcrypt.compare(req.body.password, user.password, (err, result) => {
-            if (err) {
-                return res.status(401).json({
-                    error: err,
-                });
-            }
-            // if the password from the request body is not the same as the password from the database, return an error message
-            if (!result) {
-                return res.status(401).json({
-                    message: "Incorrect password",
-                });
-            }
-            // if the password from the request body is the same as the password from the database, return a success message
+/*
+    Login API
+*/
+router.post("/login", async (req, res) => {
+    // Variables for the user data
+    const { username, password } = req.body;
 
-            // create a token
-            const token = jwt.sign(
-                {
-                    username: user.username,
-                    userId: user._id,
-                },
-                process.env.JWT_KEY,
-                { expiresIn: "1h" }
-            );
+    // Check if fields are empty
+    if (!username || !password) {
+        return res.status(400).json({ msg: "Please enter all fields" });
+    }
 
-            return res.status(200).json({
-                message: "Authentication successful",
-                token: token,
-            });
+    // Check if user exists
+    const user = await User.findOne({ username: username });
+    if (!user) {
+        return res.status(401).json({
+            message: "User does not exist",
         });
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+        return res.status(401).json({
+            message: "Invalid credentials",
+        });
+    }
+
+    // Create and assign token
+    const token = generateToken(user.username, user._id);
+
+    // Return user and token
+    return res.status(200).json({
+        message: "Login successful",
+        token: token,
+        user: {
+            username: user.username,
+            userId: user._id,
+        },
     });
 });
 

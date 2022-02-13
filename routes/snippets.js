@@ -2,127 +2,136 @@ const express = require("express");
 const router = express.Router();
 const Snippet = require("../models/snippets");
 const User = require("../models/users");
+
 const checkAuth = require("../middleware/check-auth");
 
-const getIdFromUsername = (username) => {
-    return User.findOne({ username: username }).then((user) => {
+const getIdFromUsername = async (username) => {
+    let user = await User.findOne({ username: username });
+    if (user) {
         return user._id;
-    });
+    } else {
+        return null;
+    }
 };
 
-router.post("/create", checkAuth, (req, res) => {
-    // check if snippet already exists
-    Snippet.findOne(
-        { title: req.body.title, userId: req.userData.userId },
-        (err, snippet) => {
-            if (err) {
-                return res.status(500).json({
-                    error: err,
-                });
-            }
-            if (snippet) {
-                return res.status(400).json({
-                    message: "Snippet already exists",
-                });
-            }
+/*
+    Create a new snippet
+*/
+router.post("/create", checkAuth, async (req, res) => {
+    // Variables for request body
+    const { title, description, code, language } = req.body;
+    const userId = req.userData.userId;
 
-            // create a new snippet
-            const newSnippet = new Snippet({
-                title: req.body.title,
-                description: req.body.description,
-                code: req.body.code,
-                userId: req.userData.userId,
-                language: req.body.language,
-            });
+    // Check if snippet already exists
+    const snippet = await Snippet.findOne({ title: title, userId: userId });
+    if (snippet) {
+        return res.status(400).json({
+            message: "Snippet already exists",
+        });
+    }
 
-            // save the snippet
-            newSnippet.save((saveSnippetErr, snippet) => {
-                if (saveSnippetErr) {
-                    return res.status(500).json({
-                        error: saveSnippetErr,
-                    });
-                }
-                return res.status(201).json({
-                    message: "Snippet created",
-                    snippet: snippet,
-                });
-            });
-        }
-    );
+    // Create new snippet
+    const newSnippet = new Snippet({
+        title: title,
+        description: description,
+        code: code,
+        language: language,
+        userId: userId,
+    });
+
+    // Save snippet
+    const saveSnippet = await newSnippet.save();
+    if (saveSnippet) {
+        return res.status(201).json({
+            message: "Snippet created successfully",
+            snippet: newSnippet,
+        });
+    } else {
+        return res.status(500).json({
+            message: "Error saving snippet",
+        });
+    }
 });
 
-router.put("/update/:id", checkAuth, (req, res) => {
-    // check if snippet was created by the user who is logged in, and update the snippet with new data from the request body
-    Snippet.findOne(
-        { _id: req.params.id, userId: req.userData.userId },
-        (err, snippet) => {
-            if (err) {
-                return res.status(500).json({
-                    error: err,
-                });
-            }
-            if (!snippet) {
-                return res.status(400).json({
-                    message: "Snippet was not found or does not belong to you",
-                });
-            }
+/*
+    Update a snippet
+*/
+router.put("/update/:slug", checkAuth, async (req, res) => {
+    // Variables for request
+    const { title, description, code, language } = req.body;
+    const userId = req.userData.userId;
+    const slug = req.params.slug;
 
-            // update snippet obj
-            snippet.title = req.body.title;
-            if (req.body.description) {
-                snippet.description = req.body.description;
-            }
-            snippet.code = req.body.code;
-            snippet.language = req.body.language;
+    // Check if snippet exists
+    const snippet = await Snippet.findOne({ slug: slug, userId: userId });
+    if (!snippet) {
+        return res.status(404).json({
+            message: "Snippet not found or does not belong to you",
+        });
+    }
 
-            // save the snippet
-            snippet.save((saveErr, saveSnippet) => {
-                if (saveErr) {
-                    return res.status(500).json({
-                        error: saveErr,
-                    });
-                }
-                console.log("updated");
-                return res.status(201).json({
-                    message: "Snippet updated",
-                    snippet: saveSnippet,
-                });
-            });
-        }
+    // Update snippet
+    const updateSnippet = await Snippet.findOneAndUpdate(
+        { slug: slug, userId: userId },
+        {
+            title: title,
+            description: description,
+            code: code,
+            language: language,
+        },
+        { new: true }
     );
+
+    // Success/failure
+    if (updateSnippet) {
+        return res.status(200).json({
+            message: "Snippet updated successfully",
+            snippet: updateSnippet,
+        });
+    } else {
+        return res.status(500).json({
+            message: "Error updating snippet",
+        });
+    }
 });
 
-router.delete("/delete/:id", checkAuth, (req, res) => {
-    // check if snippet was created by the user who is logged in, and delete the snippet
-    Snippet.findOne(
-        { _id: req.params.id, userId: req.userData.userId },
-        (err, snippet) => {
-            if (err) {
-                return res.status(500).json({
-                    error: err,
-                });
-            }
-            if (!snippet) {
-                return res.status(400).json({
-                    message: "Snippet was not found or does not belong to you",
-                });
-            }
+/*
+    Delete a snippet
+*/
+router.delete("/delete/:slug", checkAuth, async (req, res) => {
+    // Variables for request
+    const userId = req.userData.userId;
+    const slug = req.params.slug;
 
-            // delete snippet
-            snippet.remove((deleteErr, snippet) => {
-                if (deleteErr) {
-                    return res.status(500).json({
-                        error: deleteErr,
-                    });
-                }
-                return res.status(200).json({
-                    message: "Snippet deleted",
-                });
-            });
-        }
-    );
+    // Check if snippet exists
+    const snippet = await Snippet.findOne({ slug: slug, userId: userId });
+    if (!snippet) {
+        return res.status(404).json({
+            message: "Snippet not found or does not belong to you",
+        });
+    }
+
+    // Delete snippet
+    const deleteSnippet = await Snippet.findOneAndDelete({
+        slug: slug,
+        userId: userId,
+    });
+
+    // Success/failure
+    if (deleteSnippet) {
+        return res.status(200).json({
+            message: "Snippet deleted successfully",
+        });
+    } else {
+        return res.status(500).json({
+            message: "Error deleting snippet",
+        });
+    }
 });
 
+/*
+    Get all snippets w/ pagination
+*/
 router.get("/all", async (req, res) => {
     // fetch all snippets
     if (req.query.page && req.query.limit) {
@@ -160,8 +169,13 @@ router.get("/all", async (req, res) => {
     }
 });
 
+/*
+    Get all snippets by user
+*/
 router.get("/user/:username", async (req, res) => {
+    // Fetch user id from username
     const queryUserId = await getIdFromUsername(req.params.username);
+
     // fetch all snippets
     if (req.query.page && req.query.limit) {
         let page = parseInt(req.query.page, 10) || 0;
@@ -200,8 +214,13 @@ router.get("/user/:username", async (req, res) => {
     }
 });
 
+/*
+    Get a snippet by slug
+*/
 router.get("/:username/:title", async (req, res) => {
+    // Fetch user id from username
     const queryUserId = await getIdFromUsername(req.params.username);
+
     // fetch all snippets from user
     try {
         const snippet = await Snippet.findOne({
@@ -220,6 +239,7 @@ router.get("/:username/:title", async (req, res) => {
             });
         }
     } catch (err) {
+        // Error
         return res.status(500).json({
             error: err,
         });

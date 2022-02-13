@@ -1,15 +1,19 @@
 const express = require("express");
 const router = express.Router();
 
+const User = require("../models/users");
 const Snippet = require("../models/snippets");
 const Group = require("../models/groups");
 
 const checkAuth = require("../middleware/check-auth");
 
-const getIdFromUsername = (username) => {
-    return User.findOne({ username: username }).then((user) => {
+const getIdFromUsername = async (username) => {
+    let user = await User.findOne({ username: username });
+    if (user) {
         return user._id;
-    });
+    } else {
+        return null;
+    }
 };
 
 // create a new group
