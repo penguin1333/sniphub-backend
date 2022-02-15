@@ -1,6 +1,6 @@
-const mongooose = require("mongoose");
+const mongoose = require("mongoose");
 
-const groupsSchema = mongooose.Schema(
+const groupsSchema = mongoose.Schema(
     {
         title: {
             type: String,
@@ -13,13 +13,11 @@ const groupsSchema = mongooose.Schema(
             type: String,
             required: true,
         },
-        snippets: {
-            type: Array,
-        },
+        snippets: [{ type: mongoose.Schema.ObjectId, ref: "Snippet" }],
     },
     {
         timestamps: true,
     }
 );
 
-module.exports = mongooose.model("Group", groupsSchema);
+module.exports = mongoose.model("Group", groupsSchema);
